@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Management System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        :root {
+            --dark-green: #102820;
+            --sage: #4C6444;
+            --beige: #CABA9C;
+            --brown: #BA6240;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--beige);
+            color: var(--dark-green);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            background-color: var(--dark-green);
+            color: var(--beige);
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            text-align: center;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: var(--sage);
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--dark-green);
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        button {
+            background-color: var(--sage);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: var(--dark-green);
+        }
+
+        .rooms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .room-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border: 1px solid #ddd;
+        }
+
+        .room-card.available {
+            border-left: 4px solid var(--sage);
+        }
+
+        .room-card.booked {
+            border-left: 4px solid var(--brown);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-badge.available {
+            background-color: #e6efe6;
+            color: var(--sage);
+        }
+
+        .status-badge.booked {
+            background-color: #f8e6e0;
+            color: var(--brown);
+        }
+
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 1rem 2rem;
+            border-radius: 4px;
+            background-color: var(--sage);
+            color: white;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Hotel Management System</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="section">
+            <h2>Add New Room</h2>
+            <form id="roomForm">
+                <div class="form-group">
+                    <label for="roomNumber">Room Number</label>
+                    <input type="text" id="roomNumber" required>
+                </div>
+                <div class="form-group">
+                    <label for="roomType">Room Type</label>
+                    <select id="roomType" required>
+                        <option value="Standard">Standard</option>
+                        <option value="Deluxe">Deluxe</option>
+                        <option value="Suite">Suite</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="roomPrice">Price per Night</label>
+                    <input type="number" id="roomPrice" required>
+                </div>
+                <button type="submit">Add Room</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>Book a Room</h2>
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label for="guestName">Guest Name</label>
+                    <input type="text" id="guestName" required>
+                </div>
+                <div class="form-group">
+                    <label for="roomId">Room</label>
+                    <select id="roomId" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="checkIn">Check-in Date</label>
+                    <input type="date" id="checkIn" required>
+                </div>
+                <div class="form-group">
+                    <label for="checkOut">Check-out Date</label>
+                    <input type="date" id="checkOut" required>
+                </div>
+                <button type="submit">Book Room</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>Available Rooms</h2>
+            <div id="roomsGrid" class="rooms-grid"></div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        const API_URL = 'http://localhost:8080';
+
+        // Show notification
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        // Fetch and display rooms
+        async function fetchRooms() {
+            try {
+                const response = await axios.get(`${API_URL}/rooms`);
+                const roomsGrid = document.getElementById('roomsGrid');
+                const roomSelect = document.getElementById('roomId');
+                
+                roomsGrid.innerHTML = '';
+                roomSelect.innerHTML = '<option value="">Select a room</option>';
+                
+                response.data.forEach(room => {
+                    // Add to rooms grid
+                    roomsGrid.innerHTML += `
+                        <div class="room-card ${room.status.toLowerCase()}">
+                            <h3>Room ${room.number}</h3>
+                            <p>${room.type}</p>
+                            <p>$${room.price}/night</p>
+                            <span class="status-badge ${room.status.toLowerCase()}">${room.status}</span>
+                        </div>
+                    `;
+                    
+                    // Add to room select if available
+                    if (room.status === 'Available') {
+                        roomSelect.innerHTML += `
+                            <option value="${room.id}">Room ${room.number} - ${room.type}</option>
+                        `;
+                    }
+                });
+            } catch (error) {
+                showNotification('Error fetching rooms');
+                console.error('Error:', error);
+            }
+        }
+
+        // Add new room
+        document.getElementById('roomForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const roomData = {
+                number: document.getElementById('roomNumber').value,
+                type: document.getElementById('roomType').value,
+                price: parseFloat(document.getElementById('roomPrice').value)
+            };
+
+            try {
+                await axios.post(`${API_URL}/rooms`, roomData);
+                showNotification('Room added successfully');
+                e.target.reset();
+                fetchRooms();
+            } catch (error) {
+                showNotification('Error adding room');
+                console.error('Error:', error);
+            }
+        });
+
+        // Book a room
+        document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const bookingData = {
+                guest_name: document.getElementById('guestName').value,
+                room_id: parseInt(document.getElementById('roomId').value),
+                check_in: document.getElementById('checkIn').value,
+                check_out: document.getElementById('checkOut').value
+            };
+
+            try {
+                await axios.post(`${API_URL}/bookings`, bookingData);
+                showNotification('Booking successful');
+                e.target.reset();
+                fetchRooms();
+            } catch (error) {
+                showNotification('Error making booking');
+                console.error('Error:', error);
+            }
+        });
+
+        // Set minimum dates for check-in and check-out
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('checkIn').min = today;
+        document.getElementById('checkOut').min = today;
+
+        // Update check-out minimum date when check-in is selected
+        document.getElementById('checkIn').addEventListener('change', (e) => {
+            document.getElementById('checkOut').min = e.target.value;
+        });
+
+        // Initial room fetch
+        fetchRooms();
+    </script>
+</body>
+</html>
